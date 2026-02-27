@@ -7,8 +7,8 @@
 start-screenshot-monitor() {
     echo "🚀 Starting Windows-to-WSL2 screenshot automation..."
     
-    # Kill any existing monitors
-    pkill -f "auto-clipboard-monitor" 2>/dev/null || true
+    # Kill any existing monitors (Windows-side process)
+    powershell.exe -Command "Get-WmiObject Win32_Process -Filter \"Name='powershell.exe'\" | Where-Object { \$_.CommandLine -like '*auto-clipboard-monitor*' } | ForEach-Object { Stop-Process -Id \$_.ProcessId -Force }" 2>/dev/null
     
     # Create screenshots directory in home
     mkdir -p "$HOME/.screenshots"
@@ -42,13 +42,16 @@ start-screenshot-monitor() {
 # Stop the monitor
 stop-screenshot-monitor() {
     echo "🛑 Stopping screenshot automation..."
-    pkill -f "auto-clipboard-monitor" 2>/dev/null || true
+    powershell.exe -Command "Get-WmiObject Win32_Process -Filter \"Name='powershell.exe'\" | Where-Object { \$_.CommandLine -like '*auto-clipboard-monitor*' } | ForEach-Object { Stop-Process -Id \$_.ProcessId -Force }" 2>/dev/null
     echo "✅ Screenshot automation stopped"
 }
 
 # Check if running
 check-screenshot-monitor() {
-    if pgrep -f "auto-clipboard-monitor" > /dev/null 2>&1; then
+    local result
+    # Use string concatenation so this query doesn't match its own process
+    result=$(powershell.exe -Command "\$p = 'auto-clipboard-' + 'monitor'; Get-WmiObject Win32_Process -Filter \"Name='powershell.exe'\" | Where-Object { \$_.CommandLine -like \"*\$p*\" -and \$_.ProcessId -ne \$PID } | Select-Object ProcessId" 2>/dev/null)
+    if echo "$result" | grep -q "[0-9]"; then
         echo "✅ Screenshot automation is running"
         echo "🔥 Just take screenshots - everything is automatic!"
         echo "📁 Saves to: $HOME/.screenshots/"

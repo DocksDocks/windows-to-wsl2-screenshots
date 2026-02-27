@@ -3,7 +3,8 @@
 
 echo "🚀 Starting Windows-to-WSL2 screenshot automation..."
 
-pkill -f "auto-clipboard-monitor" 2>/dev/null || true
+# Kill any existing monitor (Windows-side process)
+powershell.exe -Command "Get-WmiObject Win32_Process -Filter \"Name='powershell.exe'\" | Where-Object { \$_.CommandLine -like '*auto-clipboard-monitor*' } | ForEach-Object { Stop-Process -Id \$_.ProcessId -Force }" 2>/dev/null
 
 mkdir -p "$HOME/.screenshots"
 
