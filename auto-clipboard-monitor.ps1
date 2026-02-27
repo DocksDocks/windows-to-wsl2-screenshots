@@ -7,6 +7,11 @@ param(
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
+function Write-Log($message) {
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    Write-Host "[$timestamp] $message"
+}
+
 # Convert the tilde path to WSL format
 if ($SaveDirectory -eq "~/.screenshots") {
     # Try to auto-detect WSL distribution if auto mode is used
@@ -18,7 +23,7 @@ if ($SaveDirectory -eq "~/.screenshots") {
         })
         if ($WslDistros.Count -gt 0) {
             $WslDistro = $WslDistros[0]
-            Write-Host "Auto-detected WSL distribution: $WslDistro"
+            Write-Log "Auto-detected WSL distribution: $WslDistro"
         }
     }
     
@@ -32,35 +37,37 @@ if (!(Test-Path $SaveDirectory)) {
     New-Item -ItemType Directory -Path $SaveDirectory -Force | Out-Null
 }
 
-Write-Host "WINDOWS-TO-WSL2 SCREENSHOT AUTOMATION STARTED"
-Write-Host "Auto-saving images to: $SaveDirectory"
-Write-Host "Press Ctrl+C to stop"
+Write-Log "WINDOWS-TO-WSL2 SCREENSHOT AUTOMATION STARTED"
+Write-Log "Auto-saving images to: $SaveDirectory"
+Write-Log "Press Ctrl+C to stop"
 
 
 
-Write-Host "Monitoring clipboard events and directory changes..."
+Write-Log "Monitoring clipboard events and directory changes..."
 $previousHash = $null
 $lastFileTime = Get-Date
 
-# Function to copy path to both clipboards
-function Set-BothClipboards($path) {
-    try {
-        [System.Windows.Forms.Clipboard]::SetText($path)
-        $wslCommand = "echo '$path' | clip.exe"
-        wsl.exe -d $WslDistro -e bash -c $wslCommand
-        return $true
-    } catch {
-        Start-Sleep -Milliseconds 200
+# Function to copy path to clipboard
+function Set-ClipboardPath($path) {
+    $maxRetries = 2
+    for ($i = 0; $i -lt $maxRetries; $i++) {
         try {
-            [System.Windows.Forms.Clipboard]::SetText($path)
-            $wslCommand = "echo '$path' | clip.exe" 
-            wsl.exe -d $WslDistro -e bash -c $wslCommand
+            Set-Clipboard -Value $path
             return $true
         } catch {
-            Write-Warning "Could not set clipboard: $_"
-            return $false
+            if ($i -eq ($maxRetries - 1)) {
+                try {
+                    $path | clip.exe
+                    return $true
+                } catch {
+                    Write-Warning "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') Could not set clipboard: $_"
+                    return $false
+                }
+            }
+            Start-Sleep -Milliseconds 200
         }
     }
+    return $false
 }
 
 while ($true) {
@@ -77,7 +84,7 @@ while ($true) {
                 $currentHash = [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash($imageBytes))
                 
                 if ($currentHash -ne $previousHash) {
-                    Write-Host "New image detected in clipboard"
+                    Write-Log "New image detected in clipboard"
                     
                     $timestamp = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
                     $filename = "screenshot_$timestamp.png"
@@ -92,9 +99,9 @@ while ($true) {
                     $wslPath = "/home/$WslUsername/.screenshots/$filename"
                     Start-Sleep -Milliseconds 1000
                     
-                    if (Set-BothClipboards $wslPath) {
-                        Write-Host "AUTO-SAVED: $filename"
-                        Write-Host "Path ready for Ctrl+V: $wslPath"
+                    if (Set-ClipboardPath $wslPath) {
+                        Write-Log "AUTO-SAVED: $filename"
+                        Write-Log "Path ready for Ctrl+V: $wslPath"
                     }
                     
                     $previousHash = $currentHash
@@ -115,16 +122,16 @@ while ($true) {
                 $wslPath = "/home/$WslUsername/.screenshots/$($file.Name)"
                 Copy-Item $file.FullName (Join-Path $SaveDirectory "latest.png") -Force
                 
-                if (Set-BothClipboards $wslPath) {
-                    Write-Host "NEW FILE DETECTED: $($file.Name)"
-                    Write-Host "Path ready for Ctrl+V: $wslPath"
+                if (Set-ClipboardPath $wslPath) {
+                    Write-Log "NEW FILE DETECTED: $($file.Name)"
+                    Write-Log "Path ready for Ctrl+V: $wslPath"
                 }
             }
             $lastFileTime = $currentTime
         }
         
     } catch {
-        Write-Warning "Error in main loop: $_"
+        Write-Warning "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') Error in main loop: $_"
         Start-Sleep -Milliseconds 1000
     }
 }

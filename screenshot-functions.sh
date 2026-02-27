@@ -24,7 +24,7 @@ start-screenshot-monitor() {
     fi
     
     # Start the monitor in background
-    nohup powershell.exe -WindowStyle Hidden -ExecutionPolicy Bypass -File "$ps_script" > "$HOME/.screenshots/monitor.log" 2>&1 &
+    nohup powershell.exe -ExecutionPolicy Bypass -File "$ps_script" < /dev/null > "$HOME/.screenshots/monitor.log" 2>&1 9>&- &
     
     echo "✅ SCREENSHOT AUTOMATION IS NOW RUNNING!"
     echo ""
